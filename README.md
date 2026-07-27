@@ -11,9 +11,8 @@ Two users connect and video call each other using nothing but a shared **call
 code** — video and audio flow directly between the two devices, and no server
 ever has access to the media stream.
 
-> 📄 **A detailed case study covering the design decisions, WebRTC signaling
-> flow, and architecture reasoning behind this project will be linked here once
-> published.**
+> 📄 **A detailed case study covering the design decisions, encryption flow, and architecture reasoning behind this project is available on Notion:** [https://agrawalyash.notion.site/Zenvaa-Meet-Case-Study-3a75c8bb362a809aa28ee1ea55fb54e4]
+
 
 ---
 
