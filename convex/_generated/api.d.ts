@@ -10,6 +10,7 @@
 
 import type * as calls from "../calls.js";
 import type * as iceCandidates from "../iceCandidates.js";
+import type * as turn from "../turn.js";
 
 import type {
   ApiFromModules,
@@ -20,6 +21,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   calls: typeof calls;
   iceCandidates: typeof iceCandidates;
+  turn: typeof turn;
 }>;
 
 /**

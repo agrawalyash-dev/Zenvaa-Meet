@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 
 type Role = "caller" | "callee";
 type Stage = "home" | "waiting" | "in-call";
 
-const RTC_CONFIG: RTCConfiguration = {
+const FALLBACK_RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
@@ -37,6 +37,7 @@ export function useCall() {
   const remoteEndedHandledRef = useRef(false);
 
   const convex = useConvex();
+  const getIceServers = useAction(api.turn.getIceServers);
   const createCallMutation = useMutation(api.calls.createCall);
   const submitAnswerMutation = useMutation(api.calls.submitAnswer);
   const endCallMutation = useMutation(api.calls.endCall);
@@ -74,41 +75,77 @@ export function useCall() {
     pendingLocalCandidatesRef.current = [];
   }, [sendCandidate]);
 
-  const setupPeerConnection = useCallback(() => {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-    pcRef.current = pc;
+  const setupPeerConnection = useCallback(
+    (iceServers: RTCIceServer[]) => {
+      const pc = new RTCPeerConnection({ iceServers });
+      pcRef.current = pc;
 
-    pc.onicecandidate = (event) => {
-      if (!event.candidate) return;
-      if (callCodeRef.current && roleRef.current) {
-        sendCandidate(event.candidate);
-      } else {
-        pendingLocalCandidatesRef.current.push(event.candidate);
-      }
-    };
+      pc.onicecandidate = (event) => {
+        if (!event.candidate) return;
+        if (callCodeRef.current && roleRef.current) {
+          sendCandidate(event.candidate);
+        } else {
+          pendingLocalCandidatesRef.current.push(event.candidate);
+        }
+      };
 
-    pc.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0];
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = event.streams[0];
-      }
-      setRemoteConnected(true);
-    };
+      pc.ontrack = (event) => {
+        remoteStreamRef.current = event.streams[0];
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+        setRemoteConnected(true);
+      };
 
-    pc.onconnectionstatechange = () => {
-      if (["disconnected", "failed", "closed"].includes(pc.connectionState)) {
-        setRemoteConnected(false);
-      }
-    };
+      pc.onconnectionstatechange = () => {
+        if (["disconnected", "failed", "closed"].includes(pc.connectionState)) {
+          setRemoteConnected(false);
+        }
+      };
 
-    return pc;
-  }, [sendCandidate]);
+      return pc;
+    },
+    [sendCandidate],
+  );
+
+  const getRtcConfig = useCallback(async (): Promise<RTCIceServer[]> => {
+    try {
+      const iceServers = await getIceServers({});
+      return iceServers;
+    } catch (err) {
+      console.error(
+        "Failed to fetch Twilio ICE servers, using STUN-only fallback:",
+        err,
+      );
+      return FALLBACK_RTC_CONFIG.iceServers as RTCIceServer[];
+    }
+  }, [getIceServers]);
+
+  const boostVideoBitrate = useCallback((pc: RTCPeerConnection) => {
+    const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+    if (!sender) return;
+
+    const params = sender.getParameters();
+    if (!params.encodings || params.encodings.length === 0) {
+      params.encodings = [{}];
+    }
+    params.encodings[0].maxBitrate = 2_500_000;
+    sender.setParameters(params).catch(() => {});
+  }, []);
 
   const getLocalStream = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
       localStreamRef.current = stream;
       return stream;
@@ -163,7 +200,7 @@ export function useCall() {
 
   useEffect(() => {
     if (stage === "home") return;
-    if (!watchedCall) return; // still loading, or already deleted
+    if (!watchedCall) return;
     if (watchedCall.status === "ended" && !remoteEndedHandledRef.current) {
       remoteEndedHandledRef.current = true;
       cleanup();
@@ -176,8 +213,7 @@ export function useCall() {
     incomingCandidates.forEach((c) => {
       if (addedCandidateIdsRef.current.has(c._id)) return;
       addedCandidateIdsRef.current.add(c._id);
-      pc.addIceCandidate(JSON.parse(c.candidate)).catch(() => {
-      });
+      pc.addIceCandidate(JSON.parse(c.candidate)).catch(() => {});
     });
   }, [incomingCandidates]);
 
@@ -187,8 +223,10 @@ export function useCall() {
     remoteEndedHandledRef.current = false;
     try {
       const stream = await getLocalStream();
-      const pc = setupPeerConnection();
+      const iceServers = await getRtcConfig();
+      const pc = setupPeerConnection(iceServers);
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      boostVideoBitrate(pc);
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -208,7 +246,9 @@ export function useCall() {
     }
   }, [
     getLocalStream,
+    getRtcConfig,
     setupPeerConnection,
+    boostVideoBitrate,
     createCallMutation,
     flushPendingCandidates,
   ]);
@@ -237,8 +277,10 @@ export function useCall() {
         callCodeRef.current = code;
 
         const stream = await getLocalStream();
-        const pc = setupPeerConnection();
+        const iceServers = await getRtcConfig();
+        const pc = setupPeerConnection(iceServers);
         stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+        boostVideoBitrate(pc);
 
         await pc.setRemoteDescription(JSON.parse(call.callerOffer));
         const answer = await pc.createAnswer();
@@ -262,7 +304,9 @@ export function useCall() {
     [
       convex,
       getLocalStream,
+      getRtcConfig,
       setupPeerConnection,
+      boostVideoBitrate,
       submitAnswerMutation,
       flushPendingCandidates,
     ],
