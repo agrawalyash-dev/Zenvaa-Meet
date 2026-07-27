@@ -2,11 +2,18 @@
 
 # Zenvaa Meet 🔐🎥
 
-Zenvaa Meet is a modern, end-to-end encrypted (E2EE) video calling web app, built as a personal learning and portfolio project. It explores secure real-time communication design, peer-to-peer media transport, and scalable serverless architecture.
+Zenvaa Meet is a modern, end-to-end encrypted (E2EE) video calling web app,
+built as a personal learning and portfolio project. It explores secure real-time
+communication design, peer-to-peer media transport, and scalable serverless
+architecture.
 
-Two users connect and video call each other using nothing but a shared **call code** — video and audio flow directly between the two devices, and no server ever has access to the media stream.
+Two users connect and video call each other using nothing but a shared **call
+code** — video and audio flow directly between the two devices, and no server
+ever has access to the media stream.
 
-> 📄 **A detailed case study covering the design decisions, WebRTC signaling flow, and architecture reasoning behind this project will be linked here once published.**
+> 📄 **A detailed case study covering the design decisions, WebRTC signaling
+> flow, and architecture reasoning behind this project will be linked here once
+> published.**
 
 ---
 
@@ -23,12 +30,17 @@ Two users connect and video call each other using nothing but a shared **call co
 
 ## About
 
-Zenvaa Meet enables two users to start a private video call using a simple, shareable call code — no accounts, no permanent contacts, no rooms, or public directories involved. The call code itself is what identifies and connects the two participants. This is a learning project focused on understanding WebRTC and real-time signaling, so authentication is intentionally out of scope for now.
+Zenvaa Meet enables two users to start a private video call using a simple,
+shareable call code — no accounts, no permanent contacts, no rooms, or public
+directories involved. The call code itself is what identifies and connects the
+two participants. This is a learning project focused on understanding WebRTC and
+real-time signaling, so authentication is intentionally out of scope for now.
 
 ### Project Objectives
 
 - Build a secure, end-to-end encrypted peer-to-peer video calling application.
-- Learn WebRTC fundamentals — SDP negotiation, ICE candidates, and NAT traversal.
+- Learn WebRTC fundamentals — SDP negotiation, ICE candidates, and NAT
+  traversal.
 - Explore serverless, reactive backend design using Convex for signaling.
 - Practice call-code based session matching instead of persistent contact lists.
 - Understand the role of TURN/STUN servers in real-world P2P connectivity.
@@ -39,7 +51,8 @@ Zenvaa Meet enables two users to start a private video call using a simple, shar
 ## Key Features
 
 - End-to-end encrypted one-to-one video calling (media never touches a server)
-- Call-code based session creation and joining — no accounts to add, no rooms to manage
+- Call-code based session creation and joining — no accounts to add, no rooms to
+  manage
 - Real-time signaling (SDP offer/answer + ICE candidate exchange) via Convex
 - Automatic call/session cleanup after a call ends
 - Modern, responsive user interface
@@ -48,13 +61,13 @@ Zenvaa Meet enables two users to start a private video call using a simple, shar
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React.js + TypeScript |
-| Backend | Convex (serverless, reactive functions — no traditional server) |
-| Realtime Signaling | Convex reactive queries/mutations |
-| Media Transport | WebRTC (peer-to-peer) |
-| Encryption | WebRTC native encryption (DTLS-SRTP) |
+| Layer              | Technology                                                      |
+| ------------------ | --------------------------------------------------------------- |
+| Frontend           | React.js + TypeScript                                           |
+| Backend            | Convex (serverless, reactive functions — no traditional server) |
+| Realtime Signaling | Convex reactive queries/mutations                               |
+| Media Transport    | WebRTC (peer-to-peer)                                           |
+| Encryption         | WebRTC native encryption (DTLS-SRTP)                            |
 
 ---
 
@@ -63,26 +76,48 @@ Zenvaa Meet enables two users to start a private video call using a simple, shar
 ![System Architecture Diagram](./system_architecture_diagram.png)
 
 - **User 1 and User 2** each connect to their own React frontend in the browser.
-- **Call setup and signaling** (SDP offers/answers, ICE candidates) flow through `React → Convex → React` — both peers subscribe to the same call session in Convex, so each side picks up the other's data the moment it's written, with no manual WebSocket handling required.
-- **Media** flows directly `React ↔ React` (peer-to-peer) once the WebRTC handshake completes — Convex is only involved in introducing the two peers, never in the actual call.
-- If direct peer-to-peer connection isn't possible (strict NATs/firewalls), a TURN server relays the encrypted media — the relay never decrypts it, so end-to-end encryption still holds.
+- **Call setup and signaling** (SDP offers/answers, ICE candidates) flow through
+  `React → Convex → React` — both peers subscribe to the same call session in
+  Convex, so each side picks up the other's data the moment it's written, with
+  no manual WebSocket handling required.
+- **Media** flows directly `React ↔ React` (peer-to-peer) once the WebRTC
+  handshake completes — Convex is only involved in introducing the two peers,
+  never in the actual call.
+- If direct peer-to-peer connection isn't possible (strict NATs/firewalls), a
+  TURN server relays the encrypted media — the relay never decrypts it, so
+  end-to-end encryption still holds.
 
 ---
 
 ## Call Flow (Signaling + E2EE)
 
-1. **Call creation** — User A creates a call and receives a unique call code, stored in Convex along with A's SDP offer.
-2. **Joining** — User B enters the call code; Convex matches it to the existing call session.
-3. **Signaling exchange** — A and B exchange SDP offer/answer and ICE candidates through Convex's reactive queries — updates propagate instantly without polling.
-4. **WebRTC handshake** — Once both sides have the necessary connection info, a direct peer-to-peer connection is established.
-5. **Encrypted media transport** — Audio/video streams between the two peers using WebRTC's built-in DTLS-SRTP encryption — the server never sees the media.
-6. **Fallback relay (if needed)** — If a direct P2P path can't be established, an encrypted stream is relayed via a TURN server, which cannot decrypt the content.
-7. **Cleanup** — Once the call ends, the call session and any signaling data are cleared from Convex.
+1. **Call creation** — User A creates a call and receives a unique call code,
+   stored in Convex along with A's SDP offer.
+2. **Joining** — User B enters the call code; Convex matches it to the existing
+   call session.
+3. **Signaling exchange** — A and B exchange SDP offer/answer and ICE candidates
+   through Convex's reactive queries — updates propagate instantly without
+   polling.
+4. **WebRTC handshake** — Once both sides have the necessary connection info, a
+   direct peer-to-peer connection is established.
+5. **Encrypted media transport** — Audio/video streams between the two peers
+   using WebRTC's built-in DTLS-SRTP encryption — the server never sees the
+   media.
+6. **Fallback relay (if needed)** — If a direct P2P path can't be established,
+   an encrypted stream is relayed via a TURN server, which cannot decrypt the
+   content.
+7. **Cleanup** — Once the call ends, the call session and any signaling data are
+   cleared from Convex.
 
-**Core guarantee:** the backend only ever handles call-code matching and signaling metadata — never the audio/video content itself.
+**Core guarantee:** the backend only ever handles call-code matching and
+signaling metadata — never the audio/video content itself.
 
 ---
 
 ## Project Scope
 
-Zenvaa Meet is intended solely as an educational and portfolio project. It is not designed to operate as a public video calling platform or commercial communication service. The focus is on demonstrating secure P2P architecture, WebRTC signaling, serverless backend design, and full-stack development skills, while maintaining responsible security practices.
+Zenvaa Meet is intended solely as an educational and portfolio project. It is
+not designed to operate as a public video calling platform or commercial
+communication service. The focus is on demonstrating secure P2P architecture,
+WebRTC signaling, serverless backend design, and full-stack development skills,
+while maintaining responsible security practices.
